@@ -11,13 +11,13 @@ const baseNav = [
   ['Attendance', '/attendance'],
   ['Homework', '/homework'],
   ['Grades', '/grades'],
-  ['Reports', '/reports'],
+  
 ]
 
 export default function DashboardLayout() {
   const { profile, refreshAuth } = useAuth()
   const navigate = useNavigate()
-  const nav = profile?.role === 'admin' ? [...baseNav, ['Users', '/users']] : baseNav
+  const nav = profile?.role === 'admin' ? [...baseNav, ['Users', '/users'],['Reports', '/reports']] : baseNav
 
   async function logout() {
     await signOut()

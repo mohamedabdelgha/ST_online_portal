@@ -72,7 +72,7 @@ export default function App() {
             <Route path="/attendance" element={<Attendance />} />
             <Route path="/homework" element={<Homework />} />
             <Route path="/grades" element={<Grades />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/reports" element={<AdminRoute><Reports /></AdminRoute>} />
             <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
