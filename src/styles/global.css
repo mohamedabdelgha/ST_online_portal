@@ -219,6 +219,7 @@ tr:last-child td {
 .form-grid input,
 .form-grid select,
 .form-grid textarea,
+textarea,select,input,
 .form-stack input,
 .toolbar select {
   width: 100%;
@@ -428,4 +429,53 @@ textarea:focus {
 .student-search:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.group-links {
+  margin-top: 18px;
+}
+
+.group-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 9px 12px;
+
+  border-radius: 7px;
+
+  text-decoration: none;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  transition: 0.2s;
+
+  border: 1px solid #e5e7eb;
+}
+
+.daftara-link {
+  background: #f8fafc;
+  color: #374151;
+}
+
+.daftara-link:hover {
+  background: #f1f5f9;
+}
+
+.classroom-link {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.classroom-link:hover {
+  background: #dbeafe;
+}
+
+.whatsapp-link {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.whatsapp-link:hover {
+  background: #dcfce7;
 }

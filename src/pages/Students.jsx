@@ -12,6 +12,59 @@ import Modal from "../components/Modal";
 import Loading from "../components/Loading";
 import ErrorState from "../components/ErrorState";
 
+// =========================================================
+// FEEDBACK ITEM
+// =========================================================
+
+function FeedbackItem({ label, value }) {
+  const percentage = Number(value || 0);
+
+  return (
+    <div
+      style={{
+        background: "#f9fafb",
+        borderRadius: "6px",
+        padding: "10px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "11px",
+          color: "#6b7280",
+          marginBottom: "5px",
+        }}
+      >
+        {label}
+      </div>
+
+      <strong>{percentage}%</strong>
+
+      <div
+        style={{
+          height: "5px",
+          background: "#e5e7eb",
+          borderRadius: "10px",
+          marginTop: "7px",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${percentage}%`,
+            height: "100%",
+            background: "#2563eb",
+            borderRadius: "10px",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// =========================================================
+// STUDENTS PAGE
+// =========================================================
+
 const blank = {
   full_name: "",
   phone: "",
@@ -33,18 +86,40 @@ export default function Students() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Student edit modal
+  // =========================================================
+  // STUDENT EDIT MODAL
+  // =========================================================
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(blank);
 
-  // Student details / notes modal
+  // =========================================================
+  // STUDENT DETAILS MODAL
+  // =========================================================
+
   const [selectedStudent, setSelectedStudent] = useState(null);
+
+  // =========================================================
+  // NOTES
+  // =========================================================
+
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
 
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+
+  // =========================================================
+  // LECTURE FEEDBACK
+  // =========================================================
+
+  const [feedback, setFeedback] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+
+  // =========================================================
+  // LOAD STUDENTS
+  // =========================================================
 
   async function load() {
     try {
@@ -61,6 +136,7 @@ export default function Students() {
 
       setStudents(studentData);
     } catch (e) {
+      console.error(e);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -90,6 +166,10 @@ export default function Students() {
     setOpen(true);
   }
 
+  // =========================================================
+  // SUBMIT STUDENT
+  // =========================================================
+
   async function submit(e) {
     e.preventDefault();
 
@@ -106,6 +186,7 @@ export default function Students() {
        * Instructor cannot create students.
        * Only edit is allowed for existing students.
        */
+
       if (!editing && profile?.role !== "admin") {
         setError("Only administrators can add students.");
         return;
@@ -121,29 +202,38 @@ export default function Students() {
 
       await load();
     } catch (e) {
+      console.error(e);
       setError(e.message);
     }
   }
 
   // =========================================================
-  // STUDENT DETAILS
+  // OPEN STUDENT
   // =========================================================
 
   async function openStudent(s) {
     setSelectedStudent(s);
     setNewNote("");
 
-    await loadNotes(s.id);
+    await Promise.all([
+      loadNotes(s.id),
+      loadFeedback(s.id),
+    ]);
   }
+
+  // =========================================================
+  // CLOSE STUDENT
+  // =========================================================
 
   function closeStudent() {
     setSelectedStudent(null);
     setNotes([]);
+    setFeedback([]);
     setNewNote("");
   }
 
   // =========================================================
-  // NOTES
+  // LOAD NOTES
   // =========================================================
 
   async function loadNotes(studentId) {
@@ -181,6 +271,10 @@ export default function Students() {
     }
   }
 
+  // =========================================================
+  // ADD NOTE
+  // =========================================================
+
   async function addNote() {
     const note = newNote.trim();
 
@@ -214,7 +308,9 @@ export default function Students() {
         throw authorError;
       }
 
-      const { error } = await supabase
+      const {
+        error,
+      } = await supabase
         .from("student_notes")
         .insert({
           student_id: selectedStudent.id,
@@ -239,6 +335,10 @@ export default function Students() {
     }
   }
 
+  // =========================================================
+  // DELETE NOTE
+  // =========================================================
+
   async function deleteNote(noteId) {
     const confirmed = window.confirm(
       "Are you sure you want to delete this note?"
@@ -249,7 +349,9 @@ export default function Students() {
     }
 
     try {
-      const { error } = await supabase
+      const {
+        error,
+      } = await supabase
         .from("student_notes")
         .delete()
         .eq("id", noteId);
@@ -266,6 +368,535 @@ export default function Students() {
   }
 
   // =========================================================
+  // LOAD LECTURE FEEDBACK
+  // =========================================================
+
+ async function loadFeedback(studentId) {
+  try {
+    setFeedbackLoading(true);
+
+    console.log("Loading feedback for student:", studentId);
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("lecture_feedback")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    console.log("Feedback data:", data);
+    console.log("Feedback error:", error);
+
+    if (error) {
+      throw error;
+    }
+
+    setFeedback(data || []);
+  } catch (e) {
+    console.error(
+      "Error loading lecture feedback:",
+      e
+    );
+
+    setFeedback([]);
+  } finally {
+    setFeedbackLoading(false);
+  }
+}
+
+  // =========================================================
+  // CALCULATE FEEDBACK AVERAGE
+  // =========================================================
+
+  function getFeedbackAverage(item) {
+    const understanding =
+      Number(item.understanding || 0);
+
+    const involvement =
+      Number(item.involvement || 0);
+
+    const technical =
+      Number(item.technical || 0);
+
+    const activity =
+      Number(item.activity || 0);
+
+    return (
+      (
+        (understanding +
+          involvement +
+          technical +
+          activity) /
+        4
+      ).toFixed(1)
+    );
+  }
+
+  // =========================================================
+  // PRINT STUDENT SHEET
+  // =========================================================
+
+  function printStudentSheet() {
+    if (!selectedStudent) {
+      return;
+    }
+
+    const student = selectedStudent;
+
+    // -------------------------------------------------------
+    // FEEDBACK HTML
+    // -------------------------------------------------------
+
+    const feedbackRows = feedback
+      .map((item) => {
+        const lectureTitle =
+          item.lectures?.title ||
+          `Lecture #${item.lecture_id}`;
+
+        const lectureDate =
+          item.lectures?.date || "";
+
+        const average =
+          getFeedbackAverage(item);
+
+        return `
+          <tr>
+
+            <td>
+              <strong>${lectureTitle}</strong>
+
+              ${
+                lectureDate
+                  ? `
+                    <br />
+                    <small>
+                      ${lectureDate}
+                    </small>
+                  `
+                  : ""
+              }
+            </td>
+
+            <td>
+              ${item.understanding ?? 0}%
+            </td>
+
+            <td>
+              ${item.involvement ?? 0}%
+            </td>
+
+            <td>
+              ${item.technical ?? 0}%
+            </td>
+
+            <td>
+              ${item.activity ?? 0}%
+            </td>
+
+            <td>
+              <strong>
+                ${average}%
+              </strong>
+            </td>
+
+          </tr>
+        `;
+      })
+      .join("");
+
+    // -------------------------------------------------------
+    // OPEN PRINT WINDOW
+    // -------------------------------------------------------
+
+    const printWindow = window.open(
+      "",
+      "_blank",
+      "width=1000,height=800"
+    );
+
+    if (!printWindow) {
+      alert(
+        "Please allow popups to print the student sheet."
+      );
+
+      return;
+    }
+
+    // -------------------------------------------------------
+    // PRINT DOCUMENT
+    // -------------------------------------------------------
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+
+      <html>
+
+        <head>
+
+          <title>
+            ${student.full_name}
+            - Student Sheet
+          </title>
+
+          <style>
+
+            * {
+              box-sizing: border-box;
+            }
+
+            body {
+              font-family:
+                Arial,
+                sans-serif;
+
+              margin: 40px;
+
+              color: #111827;
+
+              background: #ffffff;
+            }
+
+            h1 {
+              margin: 0;
+
+              font-size: 28px;
+            }
+
+            h2 {
+              margin-top: 35px;
+
+              margin-bottom: 15px;
+
+              border-bottom:
+                2px solid #e5e7eb;
+
+              padding-bottom: 8px;
+
+              font-size: 20px;
+            }
+
+            .subtitle {
+              color: #6b7280;
+
+              margin-top: 5px;
+
+              margin-bottom: 30px;
+            }
+
+            .student-info {
+              display: grid;
+
+              grid-template-columns:
+                1fr 1fr;
+
+              gap: 12px;
+
+              margin-bottom: 30px;
+            }
+
+            .info {
+              border:
+                1px solid #e5e7eb;
+
+              border-radius: 6px;
+
+              padding: 12px;
+            }
+
+            .info strong {
+              display: block;
+
+              font-size: 12px;
+
+              color: #6b7280;
+
+              margin-bottom: 5px;
+            }
+
+            table {
+              width: 100%;
+
+              border-collapse:
+                collapse;
+
+              margin-top: 10px;
+            }
+
+            th,
+            td {
+              border:
+                1px solid #d1d5db;
+
+              padding: 10px;
+
+              text-align: left;
+
+              font-size: 13px;
+            }
+
+            th {
+              background:
+                #f3f4f6;
+
+              font-weight: 600;
+            }
+
+            td {
+              vertical-align: top;
+            }
+
+            small {
+              color: #6b7280;
+
+              font-size: 10px;
+            }
+
+            .note {
+              border:
+                1px solid #e5e7eb;
+
+              border-radius: 6px;
+
+              padding: 12px;
+
+              margin-bottom: 10px;
+            }
+
+            .note-header {
+              display: flex;
+
+              justify-content:
+                space-between;
+
+              gap: 10px;
+
+              margin-bottom: 8px;
+            }
+
+            .note-header span {
+              color: #6b7280;
+
+              font-size: 11px;
+            }
+
+            .note p {
+              margin: 0;
+
+              line-height: 1.6;
+
+              white-space: pre-wrap;
+            }
+
+            .empty {
+              color: #6b7280;
+
+              padding: 15px 0;
+            }
+
+            .footer {
+              margin-top: 40px;
+
+              padding-top: 15px;
+
+              border-top:
+                1px solid #e5e7eb;
+
+              color: #6b7280;
+
+              font-size: 11px;
+            }
+
+            @media print {
+
+              body {
+                margin: 20px;
+              }
+
+              h2 {
+                break-after:
+                  avoid;
+              }
+
+              table {
+                break-inside:
+                  auto;
+              }
+
+              tr {
+                break-inside:
+                  avoid;
+              }
+
+              .note {
+                break-inside:
+                  avoid;
+              }
+
+            }
+
+          </style>
+
+        </head>
+
+        <body>
+
+          <h1>
+            ${student.full_name}
+          </h1>
+
+          <div class="subtitle">
+            Student Performance Sheet
+          </div>
+
+
+          <!-- STUDENT INFORMATION -->
+
+          <div class="student-info">
+
+            <div class="info">
+
+              <strong>
+                Group
+              </strong>
+
+              ${student.groups?.name || "—"}
+
+            </div>
+
+
+            <div class="info">
+
+              <strong>
+                Status
+              </strong>
+
+              ${student.status || "—"}
+
+            </div>
+
+
+            <div class="info">
+
+              <strong>
+                Student Phone
+              </strong>
+
+              ${student.phone || "—"}
+
+            </div>
+
+
+            <div class="info">
+
+              <strong>
+                Parent Phone
+              </strong>
+
+              ${student.parent_phone || "—"}
+
+            </div>
+
+
+            <div class="info">
+
+              <strong>
+                Join Date
+              </strong>
+
+              ${student.join_date || "—"}
+
+            </div>
+
+          </div>
+
+
+          <!-- LECTURE FEEDBACK -->
+
+          <h2>
+            Lecture Feedback
+          </h2>
+
+          ${
+            feedback.length
+              ? `
+                <table>
+
+                  <thead>
+
+                    <tr>
+
+                      <th>
+                        Lecture
+                      </th>
+
+                      <th>
+                        Understanding
+                      </th>
+
+                      <th>
+                        Involvement
+                      </th>
+
+                      <th>
+                        Technical
+                      </th>
+
+                      <th>
+                        Activity
+                      </th>
+
+                      <th>
+                        Average
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    ${feedbackRows}
+
+                  </tbody>
+
+                </table>
+              `
+              : `
+                <div class="empty">
+                  No lecture feedback
+                  available.
+                </div>
+              `
+          }
+
+
+          <div class="footer">
+
+            Generated on
+            ${new Date().toLocaleString()}
+
+          </div>
+
+        </body>
+
+      </html>
+    `);
+
+    printWindow.document.close();
+
+    printWindow.focus();
+
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  }
+
+  // =========================================================
   // FILTER
   // =========================================================
 
@@ -277,18 +908,27 @@ export default function Students() {
     const matchesSearch =
       s.full_name
         ?.toLowerCase()
-        .includes(search.toLowerCase().trim());
+        .includes(
+          search.toLowerCase().trim()
+        );
 
-    return matchesGroup && matchesSearch;
+    return (
+      matchesGroup &&
+      matchesSearch
+    );
   });
 
   // =========================================================
-  // LOADING / ERROR
+  // LOADING
   // =========================================================
 
   if (loading) {
     return <Loading />;
   }
+
+  // =========================================================
+  // ERROR
+  // =========================================================
 
   if (error && !open) {
     return (
@@ -306,35 +946,46 @@ export default function Students() {
   return (
     <div>
 
-      {/* =========================================
+      {/* =====================================================
           PAGE HEADER
-      ========================================= */}
+      ===================================================== */}
 
       <div className="page-heading">
 
         <div>
-          <h1>Students</h1>
+
+          <h1>
+            Students
+          </h1>
 
           <p>
             {profile?.role === "admin"
               ? "View and edit every student."
-              : "View and edit students in your groups."}
+              : "View students in your groups."}
           </p>
+
         </div>
 
-        {/* ONLY ADMIN CAN CREATE STUDENTS */}
+
+        {/* ADMIN ONLY */}
 
         {profile?.role === "admin" && (
+
           <button
             className="btn"
             onClick={() => {
+
               setEditing(null);
 
               setForm({
                 ...blank,
-                group_id: groups[0]?.id
-                  ? String(groups[0].id)
-                  : "",
+
+                group_id:
+                  groups[0]?.id
+                    ? String(
+                        groups[0].id
+                      )
+                    : "",
               });
 
               setOpen(true);
@@ -342,40 +993,64 @@ export default function Students() {
           >
             + New student
           </button>
+
         )}
 
       </div>
 
 
-      {/* =========================================
+      {/* =====================================================
           FILTER
-      ========================================= */}
+      ===================================================== */}
 
-<div className="toolbar students-toolbar">
-  <input
-    className="student-search"
-    type="text"
-    placeholder="Search by student name..."
-    value={search}
-    onChange={(e) => setSearch(e.target.value)}
-  />
+      <div className="toolbar students-toolbar">
 
-  <select
-    value={groupId}
-    onChange={(e) => setGroupId(e.target.value)}
-  >
-    <option value="all">All groups</option>
+        <input
+          className="student-search"
+          type="text"
+          placeholder="Search by student name..."
+          value={search}
+          onChange={(e) =>
+            setSearch(
+              e.target.value
+            )
+          }
+        />
 
-    {groups.map((g) => (
-      <option value={g.id} key={g.id}>
-        {g.name}
-      </option>
-    ))}
-  </select>
-</div>
-      {/* =========================================
+
+        <select
+          value={groupId}
+          onChange={(e) =>
+            setGroupId(
+              e.target.value
+            )
+          }
+        >
+
+          <option value="all">
+            All groups
+          </option>
+
+
+          {groups.map((g) => (
+
+            <option
+              value={g.id}
+              key={g.id}
+            >
+              {g.name}
+            </option>
+
+          ))}
+
+        </select>
+
+      </div>
+
+
+      {/* =====================================================
           STUDENTS TABLE
-      ========================================= */}
+      ===================================================== */}
 
       <div className="panel">
 
@@ -386,17 +1061,39 @@ export default function Students() {
             <thead>
 
               <tr>
-                <th>Student</th>
-                <th>Group</th>
-                <th>Phone</th>
-                <th>Parent phone</th>
-                <th>Status</th>
-                <th>Join date</th>
-                <th>Notes</th>
-                <th></th>
+
+                <th>
+                  Student
+                </th>
+
+                <th>
+                  Group
+                </th>
+
+                <th>
+                  Phone
+                </th>
+
+                <th>
+                  Parent phone
+                </th>
+
+                <th>
+                  Status
+                </th>
+
+                <th>
+                  Join date
+                </th>
+
+                {profile?.role === "admin" && (
+                  <th></th>
+                )}
+
               </tr>
 
             </thead>
+
 
             <tbody>
 
@@ -404,7 +1101,7 @@ export default function Students() {
 
                 <tr key={s.id}>
 
-                  {/* CLICK STUDENT NAME */}
+                  {/* STUDENT */}
 
                   <td>
 
@@ -423,17 +1120,29 @@ export default function Students() {
 
                   </td>
 
+
+                  {/* GROUP */}
+
                   <td>
                     {s.groups?.name || "—"}
                   </td>
+
+
+                  {/* PHONE */}
 
                   <td>
                     {s.phone || "—"}
                   </td>
 
+
+                  {/* PARENT PHONE */}
+
                   <td>
                     {s.parent_phone || "—"}
                   </td>
+
+
+                  {/* STATUS */}
 
                   <td>
 
@@ -445,37 +1154,30 @@ export default function Students() {
 
                   </td>
 
+
+                  {/* JOIN DATE */}
+
                   <td>
                     {s.join_date || "—"}
                   </td>
 
-                  {/* NOTES */}
-
-                  <td>
-
-                    <button
-                      className="text-btn"
-                      onClick={() =>
-                        openStudent(s)
-                      }
-                    >
-                      View notes
-                    </button>
-
-                  </td>
 
                   {/* EDIT */}
 
                   <td>
 
-                    <button
-                      className="text-btn"
-                      onClick={() =>
-                        startEdit(s)
-                      }
-                    >
-                      Edit
-                    </button>
+                    {profile?.role === "admin" && (
+
+                      <button
+                        className="text-btn"
+                        onClick={() =>
+                          startEdit(s)
+                        }
+                      >
+                        Edit
+                      </button>
+
+                    )}
 
                   </td>
 
@@ -483,16 +1185,26 @@ export default function Students() {
 
               ))}
 
+
+              {/* EMPTY */}
+
               {visible.length === 0 && (
 
                 <tr>
 
                   <td
-                    colSpan="8"
+                    colSpan={
+                      profile?.role === "admin"
+                        ? 7
+                        : 6
+                    }
                     style={{
-                      textAlign: "center",
-                      padding: "30px",
-                      color: "#6b7280",
+                      textAlign:
+                        "center",
+                      padding:
+                        "30px",
+                      color:
+                        "#6b7280",
                     }}
                   >
                     No students found.
@@ -511,9 +1223,9 @@ export default function Students() {
       </div>
 
 
-      {/* =========================================
+      {/* =====================================================
           EDIT STUDENT MODAL
-      ========================================= */}
+      ===================================================== */}
 
       {open && (
 
@@ -533,11 +1245,16 @@ export default function Students() {
             className="form-grid"
           >
 
+            {/* FULL NAME */}
+
             <label>
+
               Full name
 
               <input
-                value={form.full_name}
+                value={
+                  form.full_name
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -551,11 +1268,16 @@ export default function Students() {
             </label>
 
 
+            {/* STUDENT PHONE */}
+
             <label>
+
               Student phone
 
               <input
-                value={form.phone}
+                value={
+                  form.phone
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -568,11 +1290,16 @@ export default function Students() {
             </label>
 
 
+            {/* PARENT PHONE */}
+
             <label>
+
               Parent phone
 
               <input
-                value={form.parent_phone}
+                value={
+                  form.parent_phone
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -585,11 +1312,16 @@ export default function Students() {
             </label>
 
 
+            {/* GROUP */}
+
             <label>
+
               Group
 
               <select
-                value={form.group_id}
+                value={
+                  form.group_id
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -604,13 +1336,16 @@ export default function Students() {
                   Select group
                 </option>
 
+
                 {groups.map((g) => (
+
                   <option
                     key={g.id}
                     value={g.id}
                   >
                     {g.name}
                   </option>
+
                 ))}
 
               </select>
@@ -618,11 +1353,16 @@ export default function Students() {
             </label>
 
 
+            {/* STATUS */}
+
             <label>
+
               Status
 
               <select
-                value={form.status}
+                value={
+                  form.status
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -649,12 +1389,17 @@ export default function Students() {
             </label>
 
 
+            {/* JOIN DATE */}
+
             <label>
+
               Join date
 
               <input
                 type="date"
-                value={form.join_date}
+                value={
+                  form.join_date
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -667,6 +1412,8 @@ export default function Students() {
             </label>
 
 
+            {/* ACTIONS */}
+
             <div className="form-actions">
 
               <button
@@ -678,6 +1425,7 @@ export default function Students() {
               >
                 Cancel
               </button>
+
 
               <button
                 className="btn"
@@ -697,18 +1445,49 @@ export default function Students() {
       )}
 
 
-      {/* =========================================
-          STUDENT DETAILS + NOTES MODAL
-      ========================================= */}
+      {/* =====================================================
+          STUDENT DETAILS MODAL
+      ===================================================== */}
 
       {selectedStudent && (
 
         <Modal
-          title={selectedStudent.full_name}
+          title={
+            selectedStudent.full_name
+          }
           onClose={closeStudent}
         >
 
-          {/* STUDENT INFORMATION */}
+          {/* =================================================
+              PRINT BUTTON
+          ================================================= */}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent:
+                "flex-end",
+              margin:
+                "0 20px 10px",
+            }}
+          >
+
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={
+                printStudentSheet
+              }
+            >
+              🖨 Print student sheet
+            </button>
+
+          </div>
+
+
+          {/* =================================================
+              STUDENT INFORMATION
+          ================================================= */}
 
           <div
             style={{
@@ -720,70 +1499,372 @@ export default function Students() {
             }}
           >
 
+            {/* GROUP */}
+
             <div className="info-box">
-              <strong>Group</strong>
+
+              <strong>
+                Group
+              </strong>
 
               <span>
-                {selectedStudent.groups?.name ||
-                  "—"}
+                {
+                  selectedStudent
+                    .groups?.name ||
+                  "—"
+                }
               </span>
+
             </div>
 
 
+            {/* STATUS */}
+
             <div className="info-box">
-              <strong>Status</strong>
+
+              <strong>
+                Status
+              </strong>
 
               <span>
+
                 <span
                   className={`badge ${selectedStudent.status}`}
                 >
-                  {selectedStudent.status}
+                  {
+                    selectedStudent
+                      .status
+                  }
                 </span>
+
               </span>
+
             </div>
 
 
+            {/* PHONE */}
+
             <div className="info-box">
-              <strong>Student phone</strong>
+
+              <strong>
+                Student phone
+              </strong>
 
               <span>
-                {selectedStudent.phone ||
-                  "—"}
+                {
+                  selectedStudent.phone ||
+                  "—"
+                }
               </span>
+
             </div>
 
 
+            {/* PARENT PHONE */}
+
             <div className="info-box">
-              <strong>Parent phone</strong>
+
+              <strong>
+                Parent phone
+              </strong>
 
               <span>
-                {selectedStudent.parent_phone ||
-                  "—"}
+                {
+                  selectedStudent
+                    .parent_phone ||
+                  "—"
+                }
               </span>
+
             </div>
 
 
+            {/* JOIN DATE */}
+
             <div className="info-box">
-              <strong>Join date</strong>
+
+              <strong>
+                Join date
+              </strong>
 
               <span>
-                {selectedStudent.join_date ||
-                  "—"}
+                {
+                  selectedStudent
+                    .join_date ||
+                  "—"
+                }
               </span>
+
             </div>
 
           </div>
 
 
-          {/* NOTES TITLE */}
+          {/* =================================================
+              LECTURE FEEDBACK
+          ================================================= */}
 
           <div
             style={{
-              display: "flex",
+              margin:
+                "25px 20px",
+            }}
+          >
+
+            {/* FEEDBACK HEADER */}
+
+            <div
+              style={{
+                display:
+                  "flex",
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center",
+                marginBottom:
+                  "12px",
+              }}
+            >
+
+              <div>
+
+                <h3>
+                  Lecture Feedback
+                </h3>
+
+                <p
+                  style={{
+                    color:
+                      "#6b7280",
+                    fontSize:
+                      "13px",
+                    marginTop:
+                      "4px",
+                  }}
+                >
+                  Student performance
+                  in each lecture.
+                </p>
+
+              </div>
+
+
+              <span className="badge">
+
+                {feedback.length}{" "}
+
+                {feedback.length === 1
+                  ? "lecture"
+                  : "lectures"}
+
+              </span>
+
+            </div>
+
+
+            {/* FEEDBACK LOADING */}
+
+            {feedbackLoading ? (
+
+              <Loading />
+
+            ) : feedback.length === 0 ? (
+
+              <div
+                style={{
+                  padding:
+                    "25px",
+                  textAlign:
+                    "center",
+                  background:
+                    "#f9fafb",
+                  borderRadius:
+                    "8px",
+                  color:
+                    "#6b7280",
+                }}
+              >
+                No lecture feedback
+                has been recorded
+                for this student yet.
+              </div>
+
+            ) : (
+
+              <div
+                style={{
+                  display:
+                    "flex",
+                  flexDirection:
+                    "column",
+                  gap: "12px",
+                }}
+              >
+
+                {feedback.map(
+                  (item) => {
+
+                    const average =
+                      getFeedbackAverage(
+                        item
+                      );
+
+                    return (
+
+                      <div
+                        key={
+                          item.id
+                        }
+                        style={{
+                          border:
+                            "1px solid #e5e7eb",
+                          borderRadius:
+                            "8px",
+                          padding:
+                            "14px",
+                          background:
+                            "#fff",
+                        }}
+                      >
+
+                        {/* LECTURE HEADER */}
+
+                        <div
+                          style={{
+                            display:
+                              "flex",
+                            justifyContent:
+                              "space-between",
+                            alignItems:
+                              "flex-start",
+                            marginBottom:
+                              "15px",
+                          }}
+                        >
+
+                          <div>
+
+                            <strong>
+
+                              {
+                                item
+                                  .lectures
+                                  ?.title ||
+                                `Lecture #${item.lecture_id}`
+
+                              }
+
+                            </strong>
+
+
+                            {item
+                              .lectures
+                              ?.date && (
+
+                              <div
+                                style={{
+                                  marginTop:
+                                    "4px",
+                                  fontSize:
+                                    "11px",
+                                  color:
+                                    "#9ca3af",
+                                }}
+                              >
+
+                                {
+                                  item
+                                    .lectures
+                                    .date
+                                }
+
+                              </div>
+
+                            )}
+
+                          </div>
+
+
+                          <span className="badge">
+
+                            Average:{" "}
+                            {average}%
+
+                          </span>
+
+                        </div>
+
+
+                        {/* FEEDBACK VALUES */}
+
+                        <div
+                          style={{
+                            display:
+                              "grid",
+                            gridTemplateColumns:
+                              "repeat(4, 1fr)",
+                            gap:
+                              "8px",
+                          }}
+                        >
+
+                          <FeedbackItem
+                            label="Understanding"
+                            value={
+                              item.understanding
+                            }
+                          />
+
+                          <FeedbackItem
+                            label="Involvement"
+                            value={
+                              item.involvement
+                            }
+                          />
+
+                          <FeedbackItem
+                            label="Technical"
+                            value={
+                              item.technical
+                            }
+                          />
+
+                          <FeedbackItem
+                            label="Activity"
+                            value={
+                              item.activity
+                            }
+                          />
+
+                        </div>
+
+                      </div>
+
+                    );
+                  }
+                )}
+
+              </div>
+
+            )}
+
+          </div>
+
+
+          {/* =================================================
+              NOTES TITLE
+          ================================================= */}
+
+          <div
+            style={{
+              display:
+                "flex",
               justifyContent:
                 "space-between",
-              alignItems: "center",
-              margin: "12px",
+              alignItems:
+                "center",
+              margin:
+                "12px",
             }}
           >
 
@@ -795,61 +1876,84 @@ export default function Students() {
 
               <p
                 style={{
-                  color: "#6b7280",
-                  fontSize: "13px",
-                  marginTop: "4px",
+                  color:
+                    "#6b7280",
+                  fontSize:
+                    "13px",
+                  marginTop:
+                    "4px",
                 }}
               >
-                Notes written by instructors
-                and administrators.
+                Notes written by
+                instructors and
+                administrators.
               </p>
 
             </div>
 
+
             <span className="badge">
+
               {notes.length}{" "}
+
               {notes.length === 1
                 ? "note"
                 : "notes"}
+
             </span>
 
           </div>
 
 
-          {/* ADD NOTE */}
+          {/* =================================================
+              ADD NOTE
+          ================================================= */}
 
           <div
             style={{
-              margin: "20px",
+              margin:
+                "20px",
             }}
           >
 
             <textarea
-              value={newNote}
+              value={
+                newNote
+              }
               onChange={(e) =>
-                setNewNote(e.target.value)
+                setNewNote(
+                  e.target.value
+                )
               }
               placeholder="Write a note about this student..."
-              rows={4}
+              rows={2}
               style={{
-                width: "100%",
-                resize: "vertical",
-                padding: "12px",
+                width:
+                  "100%",
+                resize:
+                  "vertical",
+                padding:
+                  "12px",
                 border:
                   "1px solid #d1d5db",
-                borderRadius: "8px",
+                borderRadius:
+                  "8px",
                 fontFamily:
                   "inherit",
-                outline: "none",
+                outline:
+                  "none",
               }}
             />
 
+
             <div
               style={{
-                display: "flex",
+                display:
+                  "flex",
                 justifyContent:
                   "flex-end",
-                marginTop: "10px",
+                marginTop:
+                  "10px",
               }}
             >
 
@@ -860,11 +1964,15 @@ export default function Students() {
                   savingNote ||
                   !newNote.trim()
                 }
-                onClick={addNote}
+                onClick={
+                  addNote
+                }
               >
+
                 {savingNote
                   ? "Saving..."
                   : "Add note"}
+
               </button>
 
             </div>
@@ -872,7 +1980,9 @@ export default function Students() {
           </div>
 
 
-          {/* NOTES LIST */}
+          {/* =================================================
+              NOTES LIST
+          ================================================= */}
 
           {notesLoading ? (
 
@@ -882,102 +1992,141 @@ export default function Students() {
 
             <div
               style={{
-                padding: "30px",
-                textAlign: "center",
-                background: "#f9fafb",
-                borderRadius: "8px",
-                color: "#6b7280",
+                padding:
+                  "30px",
+                textAlign:
+                  "center",
+                background:
+                  "#f9fafb",
+                borderRadius:
+                  "8px",
+                color:
+                  "#6b7280",
               }}
             >
-              No notes have been added
-              for this student yet.
+              No notes have been
+              added for this
+              student yet.
             </div>
 
           ) : (
 
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                margin: "20px",
-                gap: "12px",
+                display:
+                  "flex",
+                flexDirection:
+                  "column",
+                margin:
+                  "20px",
+                gap:
+                  "12px",
               }}
             >
 
-              {notes.map((note) => (
-
-                <div
-                  key={note.id}
-                  style={{
-                    border:
-                      "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    padding: "14px",
-                    background: "#fff",
-                  }}
-                >
+              {notes.map(
+                (note) => (
 
                   <div
+                    key={
+                      note.id
+                    }
                     style={{
-                      display: "flex",
-                      justifyContent:
-                        "space-between",
-                      alignItems: "flex-start",
-                      gap: "10px",
+                      border:
+                        "1px solid #e5e7eb",
+                      borderRadius:
+                        "8px",
+                      padding:
+                        "10px",
+                      background:
+                        "#fff",
                     }}
                   >
 
-                    <div>
+                    {/* NOTE HEADER */}
 
-                      <strong>
-                        {note.author_name ||
-                          "Unknown"}
-                      </strong>
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        justifyContent:
+                          "space-between",
+                        alignItems:
+                          "flex-start",
+                        gap:
+                          "10px",
+                      }}
+                    >
 
-                      <div
-                        style={{
-                          marginTop: "4px",
-                          fontSize: "11px",
-                          color: "#9ca3af",
-                        }}
-                      >
-                        {new Date(
-                          note.created_at
-                        ).toLocaleString()}
+                      <div>
+
+                        <strong>
+                          {
+                            note
+                              .author_name ||
+                            "Unknown"
+                          }
+                        </strong>
+
+
+                        <div
+                          style={{
+                            marginTop:
+                              "4px",
+                            fontSize:
+                              "11px",
+                            color:
+                              "#9ca3af",
+                          }}
+                        >
+
+                          {new Date(
+                            note.created_at
+                          ).toLocaleString()}
+
+                        </div>
+
                       </div>
+
+
+                      <button
+                        className="text-btn danger"
+                        type="button"
+                        onClick={() =>
+                          deleteNote(
+                            note.id
+                          )
+                        }
+                      >
+                        Delete
+                      </button>
 
                     </div>
 
 
-                    <button
-                      className="text-btn danger"
-                      type="button"
-                      onClick={() =>
-                        deleteNote(
-                          note.id
-                        )
-                      }
+                    {/* NOTE TEXT */}
+
+                    <p
+                      style={{
+                        marginTop:
+                          "12px",
+                        color:
+                          "#374151",
+                        lineHeight:
+                          1.6,
+                        whiteSpace:
+                          "pre-wrap",
+                      }}
                     >
-                      Delete
-                    </button>
+                      {
+                        note.note
+                      }
+                    </p>
 
                   </div>
 
-
-                  <p
-                    style={{
-                      marginTop: "12px",
-                      color: "#374151",
-                      lineHeight: 1.6,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {note.note}
-                  </p>
-
-                </div>
-
-              ))}
+                )
+              )}
 
             </div>
 
