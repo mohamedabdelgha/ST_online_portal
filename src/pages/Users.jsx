@@ -61,8 +61,7 @@ export default function Users() {
         <div>
           <h1>Users</h1>
           <p>
-            Admins can edit every user's profile and role. User accounts
-            themselves are created in Supabase Auth.
+            Admins can edit every user's profile and role.
           </p>
         </div>
       </div>
