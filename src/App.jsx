@@ -13,6 +13,7 @@ import Grades from './pages/Grades'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
 import DashboardLayout from './layouts/DashboardLayout'
+import Shipping from './pages/shipping'
 import './styles/global.css'
 
 const AuthContext = createContext(null)
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="/grades" element={<Grades />} />
             <Route path="/reports" element={<AdminRoute><Reports /></AdminRoute>} />
             <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
+            <Route path="/shipping" element={<AdminRoute><Shipping /></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
